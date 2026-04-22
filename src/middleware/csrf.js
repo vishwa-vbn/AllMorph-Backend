@@ -57,18 +57,33 @@ const csrfProtection = (req, res, next) => {
   }
 
   // 4. Verify the token for state-changing methods
-  // We check multiple common header names
-  const headerToken = req.headers["x-xsrf-token"] || req.headers["x-csrf-token"];
+  // We check multiple common header names (case-insensitive in Express)
+  const headerToken = req.headers["x-xsrf-token"] || req.headers["x-csrf-token"] || req.headers["xsrf-token"];
 
   if (!headerToken || headerToken !== csrfToken) {
-    if (!isProduction) {
-      console.warn(`CSRF Failure: [${req.method}] ${path}`);
-      console.warn(`Cookie Token: ${csrfToken ? "Present" : "Missing"}`);
-      console.warn(`Header Token: ${headerToken ? "Present" : "Missing"}`);
+    // Generate a NEW token to force a reset on the client side for the next attempt
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    res.cookie("XSRF-TOKEN", resetToken, {
+      httpOnly: false,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+    res.setHeader("X-CSRF-Token", resetToken);
+
+    if (!isProduction || process.env.DEBUG_CSRF === "true") {
+      console.warn(`[CSRF FAILURE] ${req.method} ${path}`);
+      console.warn(`- Expected (Cookie): ${csrfToken}`);
+      console.warn(`- Received (Header): ${headerToken || "MISSING"}`);
+      console.warn(`- Action: Token reset sent in 403 response.`);
     }
+
     return res.status(403).json({
       success: false,
-      message: "CSRF token mismatch or missing. Please refresh the page.",
+      message: "CSRF token mismatch or missing. A fresh token has been issued, please try again.",
+      details: !isProduction ? "Check server logs for token details." : undefined,
+      retry: true // Hint to frontend to retry the action
     });
   }
 
