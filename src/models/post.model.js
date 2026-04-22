@@ -200,10 +200,10 @@ const deletePost = async (id) => {
 const incrementViewCount = async (slug) => {
   const query = `
     UPDATE posts
-    SET viewCount = viewCount + 1
+    SET viewcount = viewcount + 1
     WHERE slug = $1
       AND status = 'published'
-    RETURNING viewCount;
+    RETURNING viewcount;
   `;
   const { rows } = await client.query(query, [slug]);
   return rows[0];
