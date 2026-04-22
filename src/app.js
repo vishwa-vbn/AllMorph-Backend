@@ -130,9 +130,7 @@ app.use("/api/users/register", authLimiter);
 // ─────────────────────────────────────────────────────────────
 // ✅ CORS CONFIG (CRITICAL FOR COOKIES)
 // ─────────────────────────────────────────────────────────────
-const frontendUrl = process.env.FRONT_END_URL
-  ? process.env.FRONT_END_URL.replace(/\/$/, "")
-  : "https://all-morph.vercel.app"; // Default production domain
+const frontendUrl = (process.env.FRONT_END_URL || "https://all-morph.vercel.app").replace(/\/$/, "");
 const allowedOrigins = [
   frontendUrl,
   "https://all-morph-git-main-vishwavbns-projects.vercel.app", // Preview domain
