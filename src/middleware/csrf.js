@@ -70,7 +70,9 @@ const csrfProtection = (req, res, next) => {
       maxAge: 24 * 60 * 60 * 1000,
       path: "/",
     });
+    // 🔥 Force headers to expose the new token
     res.setHeader("X-CSRF-Token", resetToken);
+    res.setHeader("Access-Control-Expose-Headers", "X-CSRF-Token");
 
     if (!isProduction || process.env.DEBUG_CSRF === "true") {
       console.warn(`[CSRF FAILURE] ${req.method} ${path}`);
@@ -82,8 +84,8 @@ const csrfProtection = (req, res, next) => {
     return res.status(403).json({
       success: false,
       message: "CSRF token mismatch or missing. A fresh token has been issued, please try again.",
-      details: !isProduction ? "Check server logs for token details." : undefined,
-      retry: true // Hint to frontend to retry the action
+      newToken: resetToken, // 🚀 RELIABLE Body-based token transfer
+      retry: true 
     });
   }
 
