@@ -3,6 +3,7 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 // PostgreSQL Connection Pool Configuration
+// Optimized for serverless (Vercel) — short-lived, isolated invocations
 const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
@@ -12,9 +13,9 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // Set to true if using a custom CA in production
   },
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 2000, // How long to wait before timing out when connecting a new client
+  max: 3, // Serverless: keep pool small to avoid exhausting DB connections
+  idleTimeoutMillis: 10000, // Close idle clients quickly in serverless
+  connectionTimeoutMillis: 10000, // Allow 10s for cold-start + remote DB handshake
 });
 
 // Event listeners for the pool

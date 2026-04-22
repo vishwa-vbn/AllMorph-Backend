@@ -225,8 +225,14 @@ app.use((err, req, res, next) => {
 // ─────────────────────────────────────────────────────────────
 // ✅ START SERVER
 // ─────────────────────────────────────────────────────────────
-app.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
-});
+// Only listen when running locally (not on Vercel serverless)
+if (process.env.VERCEL !== "1") {
+  app.listen(port, () => {
+    console.log(`🚀 Server running on http://localhost:${port}`);
+  });
+}
+
+// Export for Vercel serverless deployment
+module.exports = app;
 
 
