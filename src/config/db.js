@@ -13,14 +13,14 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // Set to true if using a custom CA in production
   },
-  max: 3, // Serverless: keep pool small to avoid exhausting DB connections
-  idleTimeoutMillis: 10000, // Close idle clients quickly in serverless
+  max: 15, // Increased for local development to avoid bottleneck
+  idleTimeoutMillis: 30000, // Keep connections alive longer to reduce churn
   connectionTimeoutMillis: 10000, // Allow 10s for cold-start + remote DB handshake
 });
 
 // Event listeners for the pool
 pool.on("connect", () => {
-  console.log("✅ Database Pool: New client connected");
+  // Silent in development to reduce log noise
 });
 
 pool.on("error", (err) => {

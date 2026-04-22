@@ -51,7 +51,7 @@ const port = process.env.PORT || 3000;
 const frontendUrl = process.env.FRONT_END_URL 
   ? process.env.FRONT_END_URL.replace(/\/$/, "")
   : "https://all-morph.vercel.app";
-const allowedOrigins = [frontendUrl];
+const allowedOrigins = [frontendUrl, "http://localhost:5173"];
 
 app.use(
   cors({

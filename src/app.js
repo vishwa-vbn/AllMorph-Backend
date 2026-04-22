@@ -81,6 +81,9 @@ const sanitizationMiddleware = require("./middleware/sanitization");
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Trust Vercel's proxy for secure cookies / protocol detection
+app.set("trust proxy", 1);
+
 // ─────────────────────────────────────────────────────────────
 // ✅ SECURITY HEADERS (HELMET)
 // ─────────────────────────────────────────────────────────────
