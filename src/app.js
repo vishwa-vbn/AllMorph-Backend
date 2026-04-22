@@ -1,116 +1,229 @@
+// const express = require('express');
+// const cors = require('cors');
+// const cookieParser = require('cookie-parser');
+// const csrfProtection = require('./middleware/csrf');
+// const sanitizationMiddleware = require('./middleware/sanitization');
+// require('dotenv').config();
 
+// const app = express();
+// const port = process.env.PORT || 3000;
 
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const { listenClient } = require('./config/db');
-require('dotenv').config();
+// // CORS middleware
+// app.use(
+//   cors({
+//     origin: [
+//       'http://localhost:5173',
+//       'https://yourblog.com',
+//       'https://admin.free-subdomain.com',
+//     ],
+//     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+//     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+//     credentials: true,
+//   })
+// );
+
+// // Parse JSON and cookies
+// app.use(express.json());
+// app.use(cookieParser());
+
+// // Sanitization (before routes and CSRF to be safe, though order with CSRF doesn't matter much)
+// app.use(sanitizationMiddleware);
+
+// // CSRF Protection
+// app.use(csrfProtection);
+
+// // Mount routes
+// app.use('/api/users', require('./routes/user.routes'));
+// app.use('/api/posts', require('./routes/post.routes'));
+// app.use('/api/categories', require('./routes/category.routes'));
+// app.use('/api/post-categories', require('./routes/postCategories.routes'));
+// app.use('/api/tags', require('./routes/tags.routes'));
+// app.use('/api/post-tags', require('./routes/postTags.routes'));
+// app.use('/api/comments', require('./routes/comments.routes'));
+// app.use('/api/ad-units', require('./routes/adUnits.routes'));
+// app.use('/api/settings', require('./routes/settings.routes'));
+// app.use("/api/imagekit", require("./routes/imageKit.routes"));
+// app.use("/api/cloudinary",require("./routes/cloudinary.routes"))
+
+// // Newly added routes
+// app.use('/api/newsletter', require('./routes/newsletter.routes'));
+// app.use('/api/contact', require('./routes/contact.routes'));
+// app.use('/api/pages', require('./routes/page.routes'));
+// app.use('/api/search', require('./routes/search.routes'));
+// app.use('/api/likes', require('./routes/like.routes'));
+// app.use('/api/bookmarks', require('./routes/bookmark.routes'));
+// app.use('/api/cookies', require('./routes/cookie.routes'));
+// app.use('/api/sitemap', require('./routes/sitemap.routes'));
+// app.use("/api/dashboard", require("./routes/dashboard.routes"));
+
+// // Health-check endpoint
+// app.get('/', (req, res) => {
+//   res.send('Backend API is running!');
+// });
+
+// // Start server
+// app.listen(port, () => {
+//   console.log(`Server listening on port ${port}`);
+// });
+
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+require("dotenv").config();
+
+// Custom middleware
+const csrfProtection = require("./middleware/csrf");
+const sanitizationMiddleware = require("./middleware/sanitization");
 
 const app = express();
-const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
-// CORS middleware
+// ─────────────────────────────────────────────────────────────
+// ✅ SECURITY HEADERS (HELMET)
+// ─────────────────────────────────────────────────────────────
 app.use(
-  cors({
-    origin: [
-      'http://localhost:5173',
-      'https://yourblog.com',
-      'https://admin.free-subdomain.com',
-    ],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  })
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://ik.imagekit.io",
+          "https://res.cloudinary.com",
+        ],
+        connectSrc: ["'self'"],
+      },
+    },
+  }),
 );
 
-// Parse JSON
-app.use(express.json());
+// ─────────────────────────────────────────────────────────────
+// ✅ RATE LIMITING
+// ─────────────────────────────────────────────────────────────
+const generalLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  message: { error: "Too many requests, please try again later." },
+});
 
-// Initialize Socket.IO
-const io = new Server(server, {
-  cors: {
-    origin: [
-      'http://localhost:5173',
-      'https://yourblog.com',
-      'https://admin.free-subdomain.com',
-    ],
-    methods: ['GET', 'POST'],
+// Apply general limiter to all routes
+app.use("/api/", generalLimiter);
+
+// Stricter limiter for login/register
+const authLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_LOGIN_MAX) || 10,
+  message: { error: "Too many login attempts, please try again after 15 minutes." },
+});
+app.use("/api/users/login", authLimiter);
+app.use("/api/users/register", authLimiter);
+
+// ─────────────────────────────────────────────────────────────
+// ✅ CORS CONFIG (CRITICAL FOR COOKIES)
+// ─────────────────────────────────────────────────────────────
+const frontendUrl = process.env.FRONT_END_URL 
+  ? process.env.FRONT_END_URL.replace(/\/$/, "")
+  : "https://all-morph-git-main-vishwavbns-projects.vercel.app"; // Fallback if missing
+const allowedOrigins = [frontendUrl];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
-  },
-  path: '/socket.io/',
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000, // Example: Increase to 60 seconds (default is often around 20 seconds)
-  pingInterval: 25000, // Example: Send pings every 25 seconds
-});
+  }),
+);
 
-const blogNamespace = io.of('/blog');
+// ─────────────────────────────────────────────────────────────
+// ✅ BODY + COOKIE PARSER
+// ─────────────────────────────────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// Token verification
-blogNamespace.use((socket, next) => {
-  const token = socket.handshake.auth.token;
-  if (token) return next();
-  next(new Error('Authentication required'));
-});
+// ─────────────────────────────────────────────────────────────
+// ✅ SANITIZATION (before routes)
+// ─────────────────────────────────────────────────────────────
+app.use(sanitizationMiddleware);
 
-// Handle PostgreSQL notifications
-listenClient.on('notification', (msg) => {
-  try {
-    const payload = JSON.parse(msg.payload || '{}'); // Fallback to empty object
-    if (msg.channel === 'tag_changes') {
-      blogNamespace.emit('tag_change', payload);
-    }
-    if (msg.channel === 'user_changes') {
-      console.log('Changes in users');
-      blogNamespace.emit('user_change', payload);
-    }
-    if (msg.channel === 'post_changes') {
-      blogNamespace.emit('post_change', payload);
-    }
-    if (msg.channel === 'post_category_changes') {
-      blogNamespace.emit('post_category_change', payload);
-    }
-    if (msg.channel === 'post_tag_changes') {
-      blogNamespace.emit('post_tag_changes', payload);
-    }
-    if (msg.channel === 'category_changes') { // Add this block
-      blogNamespace.emit('category_change', payload);
-    }
-    if (msg.channel === 'comment_changes') {
-      blogNamespace.emit('comment_change', payload);
-    }
-    if (msg.channel === "setting_changes") {
-      blogNamespace.emit("setting_change", payload); // Add this block
-    }
-    if (msg.channel === "ad_unit_changes") {
-      blogNamespace.emit("ad_unit_change", payload); // Add this block
-    }
-  } catch (err) {
-    console.error('❌ Notification parse error:', err);
-  }
-});
+// ─────────────────────────────────────────────────────────────
+// ✅ CSRF PROTECTION (GLOBAL)
+// ─────────────────────────────────────────────────────────────
+app.use(csrfProtection);
 
-// Mount routes
-app.use('/api/users', require('./routes/user.routes'));
-app.use('/api/posts', require('./routes/post.routes'));
-app.use('/api/categories', require('./routes/category.routes'));
-app.use('/api/post-categories', require('./routes/postCategories.routes'));
-app.use('/api/tags', require('./routes/tags.routes'));
-app.use('/api/post-tags', require('./routes/postTags.routes'));
-app.use('/api/comments', require('./routes/comments.routes'));
-app.use('/api/ad-units', require('./routes/adUnits.routes'));
-app.use('/api/settings', require('./routes/settings.routes'));
+// ─────────────────────────────────────────────────────────────
+// ✅ ROUTES
+// ─────────────────────────────────────────────────────────────
+app.use("/api/users", require("./routes/user.routes"));
+app.use("/api/posts", require("./routes/post.routes"));
+app.use("/api/categories", require("./routes/category.routes"));
+app.use("/api/post-categories", require("./routes/postCategories.routes"));
+app.use("/api/tags", require("./routes/tags.routes"));
+app.use("/api/post-tags", require("./routes/postTags.routes"));
+app.use("/api/comments", require("./routes/comments.routes"));
+app.use("/api/ad-units", require("./routes/adUnits.routes"));
+app.use("/api/settings", require("./routes/settings.routes"));
 app.use("/api/imagekit", require("./routes/imageKit.routes"));
-app.use("/api/cloudinary",require("./routes/cloudinary.routes"))
+app.use("/api/cloudinary", require("./routes/cloudinary.routes"));
 
+// Additional routes
+app.use("/api/newsletter", require("./routes/newsletter.routes"));
+app.use("/api/contact", require("./routes/contact.routes"));
+app.use("/api/pages", require("./routes/page.routes"));
+app.use("/api/search", require("./routes/search.routes"));
+app.use("/api/likes", require("./routes/like.routes"));
+app.use("/api/bookmarks", require("./routes/bookmark.routes"));
+app.use("/api/cookies", require("./routes/cookie.routes"));
+app.use("/api/sitemap", require("./routes/sitemap.routes"));
+app.use("/api/dashboard", require("./routes/dashboard.routes"));
 
-// Health-check endpoint
-app.get('/', (req, res) => {
-  res.send('Backend API is running!');
+// ─────────────────────────────────────────────────────────────
+// ✅ HEALTH CHECK
+// ─────────────────────────────────────────────────────────────
+app.get("/", (req, res) => {
+  res.send("Backend API is running!");
 });
 
-// Start server
-server.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+// ─────────────────────────────────────────────────────────────
+// ✅ GLOBAL ERROR HANDLER
+// ─────────────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.error("Global Error:", err);
+  }
+
+  if (err.code === "EBADCSRFTOKEN") {
+    return res.status(403).json({ error: "Invalid CSRF token" });
+  }
+
+  // Handle CORS errors specifically
+  if (err.message === "Not allowed by CORS") {
+    return res.status(403).json({ error: "CORS policy restriction" });
+  }
+
+  res.status(err.status || 500).json({
+    error: process.env.NODE_ENV === "production" 
+      ? "An internal server error occurred" 
+      : err.message
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// ✅ START SERVER
+// ─────────────────────────────────────────────────────────────
+app.listen(port, () => {
+  console.log(`🚀 Server running on http://localhost:${port}`);
 });

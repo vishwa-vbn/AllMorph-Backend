@@ -4,11 +4,27 @@ const { queryClient: pool } = require("../config/db");
 const createCategory = async ({ name, slug, description, featuredImage, parentId }) => {
   const query = `
     INSERT INTO categories (name, slug, description, featuredImage, parentId)
-    VALUES ($1, $2, $3, $4, $5) RETURNING *;
+    VALUES ($1, $2, $3, $4, $5) 
+    RETURNING *;
   `;
   const values = [name, slug, description, featuredImage, parentId];
-  const { rows } = await pool.query(query, values);
-  return rows[0];
+
+  console.log("Executing INSERT with values:", values);   // ← Add this
+
+  try {
+    const { rows } = await pool.query(query, values);
+    console.log("Insert successful, returned row:", rows[0]);   // ← Add this
+    return rows[0];
+  } catch (error) {
+    console.error("Database Error:", error);   // ← Add this
+    if (error.code === '23505' && error.constraint === 'categories_slug_key') {
+      throw Object.assign(new Error('Slug already exists'), {
+        statusCode: 409,
+        code: 'DUPLICATE_SLUG'
+      });
+    }
+    throw error;
+  }
 };
 
 // Get all categories

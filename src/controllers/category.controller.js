@@ -2,11 +2,37 @@ const categoryModel = require("../models/category.model");
 const { successResponse, errorResponse } = require("../utils/response");
 
 // Create a new category
+// const createCategoryHandler = async (req, res) => {
+//   try {
+//     console.log("create categorycalled ",req, res)
+//     const category = await categoryModel.createCategory(req.body);
+//     console.log("category is ",category)
+//     return successResponse(res, 201, "Category created successfully", category);
+//   } catch (error) {
+//     return errorResponse(res, error);
+//   }
+// };
+
 const createCategoryHandler = async (req, res) => {
   try {
     const category = await categoryModel.createCategory(req.body);
     return successResponse(res, 201, "Category created successfully", category);
   } catch (error) {
+    
+    // Handle duplicate slug error
+    if (error.code === '23505' || 
+        error.constraint === 'categories_slug_key' || 
+        error.message?.toLowerCase().includes('duplicate') || 
+        error.statusCode === 409) {
+      
+      return res.status(409).json({
+        success: false,
+        status: 409,
+        message: "A category with this slug already exists. Please choose a different slug."
+      });
+    }
+
+    // For all other errors
     return errorResponse(res, error);
   }
 };

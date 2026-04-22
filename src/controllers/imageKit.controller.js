@@ -7,32 +7,36 @@ const imageKit = new ImageKit({
   publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
   privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+  timeout: 60000,
+
 });
 
-// List files from ad_units folder
+// List folders and files dynamically based on path
 const listAssets = async (req, res) => {
   try {
-    const { type, sort, skip = 0, limit = 100 } = req.query;
+    // Default path is "/" (root) if not provided
+    const { path = "/", sort, skip = 0, limit = 100 } = req.query;
 
     const queryParams = {
-      path: "/ad_units/", // Hardcoded to ad_units
+      path: path, 
       skip: parseInt(skip),
       limit: parseInt(limit),
-      includeFolder: false, // Exclude folders, only files
+      includeFolder: true, // IMPORTANT: This allows us to see folders like user_avatars, ad_units, etc.
     };
 
-    if (type) {
-      queryParams.type = type; // e.g., "file"
-    }
-
     if (sort) {
-      queryParams.sort = sort; // e.g., "ASC_NAME"
+      queryParams.sort = sort;
     }
 
     const assets = await imageKit.listFiles(queryParams);
-    console.log("listAssets result:", assets);
 
-    return successResponse(res, 200, "Assets retrieved successfully", assets);
+    // Optional: You can add a 'type' property to help your frontend distinguish easily
+    const formattedAssets = assets.map(asset => ({
+      ...asset,
+      isFolder: asset.type === 'folder' 
+    }));
+
+    return successResponse(res, 200, "Assets retrieved successfully", formattedAssets);
   } catch (error) {
     console.error("Error listing assets:", error.message);
     return errorResponse(res, 500, error.message);

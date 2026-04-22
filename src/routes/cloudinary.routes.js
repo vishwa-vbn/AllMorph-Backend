@@ -26,7 +26,7 @@ const upload = multer({
 
 router.get("/assets", isAuthenticated, isAdmin, listAssets); // List ad_units files
 router.get('/assets/:assetId', isAuthenticated, isAdmin, getFileDetails);
-router.delete('/assets/:assetId', isAuthenticated, isAdmin, deleteFile);// Delete file
+router.delete('/files/:assetId', isAuthenticated, isAdmin, deleteFile);// Delete file
 router.post("/upload", isAuthenticated, isAdmin, upload, uploadFile); // Upload file to ad_units
 
 module.exports = router;
