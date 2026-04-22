@@ -116,7 +116,7 @@ const loginUserHandler = async (req, res) => {
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
@@ -140,7 +140,7 @@ const refreshTokenHandler = async (req, res) => {
       res.cookie("accessToken", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "Lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 1 * 60 * 60 * 1000,
       });
       res.json({ accessToken });
@@ -152,7 +152,7 @@ const refreshTokenHandler = async (req, res) => {
 
 const logoutUserHandler = async (req, res) => {
   try {
-    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "Lax" };
+    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: process.env.NODE_ENV === "production" ? "none" : "lax" };
     res.clearCookie("accessToken", cookieOptions);
     res.clearCookie("refreshToken", cookieOptions);
     res.json({ message: "User logged out successfully" });
