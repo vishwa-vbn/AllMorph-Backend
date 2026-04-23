@@ -1,10 +1,10 @@
 // src/config/db.js
-const { Pool } = require("pg");
+const { Client } = require("pg");
 require("dotenv").config();
 
-// PostgreSQL Connection Pool Configuration
-// Optimized for serverless (Vercel) — short-lived, isolated invocations
-const pool = new Pool({
+// PostgreSQL Connection Configuration
+// Using a per-request connection method to avoid Pool usage while allowing concurrent user access.
+const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   host: process.env.DB_HOST,
@@ -13,24 +13,36 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // Set to true if using a custom CA in production
   },
-  max: 15, // Increased for local development to avoid bottleneck
-  idleTimeoutMillis: 30000, // Keep connections alive longer to reduce churn
-  connectionTimeoutMillis: 10000, // Allow 10s for cold-start + remote DB handshake
-});
+};
 
-// Event listeners for the pool
-pool.on("connect", () => {
-  // Silent in development to reduce log noise
-});
+/**
+ * Standard query helper that creates a new connection for every request.
+ * This satisfies the requirement to avoid pooling while allowing the database 
+ * to handle multiple concurrent connections from different users.
+ */
+const query = async (text, params) => {
+  const client = new Client(dbConfig);
+  try {
+    await client.connect();
+    const result = await client.query(text, params);
+    return result;
+  } catch (err) {
+    console.error("❌ Database Query Error:", err.message);
+    throw err;
+  } finally {
+    try {
+      await client.end();
+    } catch (endErr) {
+      console.error("❌ Error closing connection:", endErr.message);
+    }
+  }
+};
 
-pool.on("error", (err) => {
-  console.error("❌ Database Pool Error:", err.message);
-});
-
-// For backward compatibility and ease of use, we export a query helper
+// Export query helper and aliases for backward compatibility
 module.exports = {
-  query: (text, params) => pool.query(text, params),
-  pool,
-  // We keep the old name if any parts of the code specifically require the 'queryClient' object
-  queryClient: pool, 
+  query,
+  // These objects wrap the query function to maintain compatibility with existing models
+  client: { query },
+  pool: { query },
+  queryClient: { query },
 };
