@@ -69,13 +69,11 @@
 
 const express = require("express");
 const cors = require("cors");
-const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 // Custom middleware
-const csrfProtection = require("./middleware/csrf");
 const sanitizationMiddleware = require("./middleware/sanitization");
 
 const app = express();
@@ -84,92 +82,39 @@ const port = process.env.PORT || 3000;
 // Trust Vercel's proxy for secure cookies / protocol detection
 app.set("trust proxy", 1);
 
-// ─────────────────────────────────────────────────────────────
-// ✅ SECURITY HEADERS (HELMET)
-// ─────────────────────────────────────────────────────────────
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: [
-          "'self'",
-          "data:",
-          "https://ik.imagekit.io",
-          "https://res.cloudinary.com",
-        ],
-        connectSrc: ["'self'"],
-      },
-    },
-  }),
-);
-
-// ─────────────────────────────────────────────────────────────
-// ✅ RATE LIMITING
-// ─────────────────────────────────────────────────────────────
-const generalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
-  message: { error: "Too many requests, please try again later." },
+// Simple request logger
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  next();
 });
 
-// Apply general limiter to all routes
-app.use("/api/", generalLimiter);
-
-// Stricter limiter for login/register
-const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_LOGIN_MAX) || 10,
-  message: { error: "Too many login attempts, please try again after 15 minutes." },
-});
-app.use("/api/users/login", authLimiter);
-app.use("/api/users/register", authLimiter);
-
 // ─────────────────────────────────────────────────────────────
-// ✅ CORS CONFIG (CRITICAL FOR COOKIES)
+// ✅ CORS CONFIG (MUST BE FIRST)
 // ─────────────────────────────────────────────────────────────
 const frontendUrl = (process.env.FRONT_END_URL || "https://all-morph.vercel.app").replace(/\/$/, "");
 const allowedOrigins = [
   frontendUrl,
   "https://all-morph-git-main-vishwavbns-projects.vercel.app", // Preview domain
-  "http://localhost:5173" // Local dev
+  // "http://localhost:5173" // Local dev
 ];
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    credentials: true,
-    exposedHeaders: ["X-CSRF-Token"],
-  }),
-);
+app.use(cors({
+  origin: (origin, callback) => callback(null, true), // Reflect any origin
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"]
+}));
 
 // ─────────────────────────────────────────────────────────────
 // ✅ BODY + COOKIE PARSER
 // ─────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 // ─────────────────────────────────────────────────────────────
 // ✅ SANITIZATION (before routes)
 // ─────────────────────────────────────────────────────────────
 app.use(sanitizationMiddleware);
-
-// ─────────────────────────────────────────────────────────────
-// ✅ CSRF PROTECTION (GLOBAL)
-// ─────────────────────────────────────────────────────────────
-app.use(csrfProtection);
 
 // ─────────────────────────────────────────────────────────────
 // ✅ ROUTES
@@ -210,10 +155,6 @@ app.get("/", (req, res) => {
 app.use((err, req, res, next) => {
   if (process.env.NODE_ENV !== "production") {
     console.error("Global Error:", err);
-  }
-
-  if (err.code === "EBADCSRFTOKEN") {
-    return res.status(403).json({ error: "Invalid CSRF token" });
   }
 
   // Handle CORS errors specifically

@@ -58,7 +58,6 @@ const {
   deleteUserHandler,
   bulkDeleteUsersHandler,
   getUserWithPermissionsHandler,
-  refreshTokenHandler,
   logoutUserHandler,
 } = require("../controllers/user.controller");
 
@@ -74,7 +73,6 @@ router.post("/register", createUserHandler);
 router.post("/login", loginUserHandler);
 router.post("/forgot-password", forgotPasswordHandler);
 router.post("/reset-password", resetPasswordHandler);
-router.post("/refresh-token", refreshTokenHandler);
 router.post("/logout", isAuthenticated, logoutUserHandler);
 
 // ─── FIX: /register/admin is now protected — only an existing admin can create another admin

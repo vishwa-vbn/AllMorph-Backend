@@ -41,9 +41,8 @@
 const jwt = require("jsonwebtoken");
 
 const isAuthenticated = (req, res, next) => {
-  let token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
+  let token = req.header("Authorization")?.replace("Bearer ", "");
   
-  // Guard against stringified null/undefined from frontend
   if (token === "undefined" || token === "null") {
     token = null;
   }
@@ -73,7 +72,7 @@ const isAdmin = (req, res, next) => {
 
 const optionalAuthenticated = (req, res, next) => {
   try {
-    let token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
+    let token = req.header("Authorization")?.replace("Bearer ", "");
     
     if (token === "undefined" || token === "null") {
       token = null;

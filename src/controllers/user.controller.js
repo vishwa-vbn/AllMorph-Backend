@@ -110,51 +110,25 @@ const loginUserHandler = async (req, res) => {
     if (!user) return res.status(401).json({ error: "Invalid email or password" });
 
     const permissions = await userModel.getPermissionsByRoleId(user.roleid);
-    const accessToken = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    const refreshToken = jwt.sign({ userId: user.id, role: user.role }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
+    const accessToken = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "24h" });
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    };
-
-    res.cookie("accessToken", accessToken, { ...cookieOptions, maxAge: 1 * 60 * 60 * 1000 });
-    res.cookie("refreshToken", refreshToken, cookieOptions);
-
-    res.json({ message: "Login successful", user, permissions });
-  } catch (err) {
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-const refreshTokenHandler = async (req, res) => {
-  try {
-    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
-    if (!refreshToken) return res.status(401).json({ error: "Refresh token is required" });
-
-    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, decoded) => {
-      if (err) return res.status(403).json({ error: "Invalid or expired refresh token" });
-      const accessToken = jwt.sign({ userId: decoded.userId, role: decoded.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
-      res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 1 * 60 * 60 * 1000,
-      });
-      res.json({ accessToken });
+    res.json({ 
+      message: "Login successful", 
+      user, 
+      permissions, 
+      token: accessToken // Return token directly to the frontend
     });
   } catch (err) {
+    console.error("Login Error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 const logoutUserHandler = async (req, res) => {
   try {
-    const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: process.env.NODE_ENV === "production" ? "none" : "lax" };
-    res.clearCookie("accessToken", cookieOptions);
-    res.clearCookie("refreshToken", cookieOptions);
+    // With JWT stored on frontend, logout just needs to return success.
+    // The frontend will clear the token from Redux.
     res.json({ message: "User logged out successfully" });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
@@ -358,7 +332,6 @@ module.exports = {
   createUserHandler,
   createAdminHandler,
   loginUserHandler,
-  refreshTokenHandler,
   logoutUserHandler,
   forgotPasswordHandler,
   resetPasswordHandler,
@@ -376,7 +349,6 @@ module.exports = {
   getUserLikesHandler,
   getUserBookmarksHandler,
   getPublicUsers,
-  refreshAccessToken: refreshTokenHandler,
   changeCurrentPassword: (req, res) => res.status(501).json({ message: "Not implemented" }),
   forgetPassword: forgotPasswordHandler,
   resetPassword: resetPasswordHandler,
