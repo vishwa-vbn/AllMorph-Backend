@@ -25,7 +25,11 @@ const sanitize = (obj, isRichContent = false) => {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       // Mark "content" as rich text so we don't strip tags
       const isRich =
-        key === "content" || key === "body" || key === "description";
+        key === "content" ||
+        key === "body" ||
+        key === "description" ||
+        key === "script" ||
+        key === "ins_code";
       newObj[key] = sanitize(obj[key], isRich);
     }
   }
