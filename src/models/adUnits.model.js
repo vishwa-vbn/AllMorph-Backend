@@ -8,6 +8,7 @@ class AdProvider {
       social_bar: { enabled: false, unit_id: "", script: "" },
       banners: [],
       native_banners: [],
+      smartlinks: [],
     };
   }
 
@@ -123,6 +124,7 @@ class AdSettings {
         native_banners: Array.isArray(p.config?.native_banners)
           ? p.config.native_banners
           : [],
+        smartlinks: Array.isArray(p.config?.smartlinks) ? p.config.smartlinks : [],
       });
     }
 
